@@ -286,6 +286,14 @@ export class GameEngine {
         });
         this.io.to(lobbyRoom(lobbyId)).emit("game:update", this.decorateState(state));
         this.scheduleNext(state);
+      } else if (state.phase === "results") {
+        state.phase = "finished";
+        state.phaseEndsAt = currentTime;
+        this.saveState(state);
+        this.stmt.updateLobbyStatus.run("finished", currentTime, lobbyId);
+        this.stmt.clearLobbyPlayers.run(lobbyId);
+        this.io.to(lobbyRoom(lobbyId)).emit("game:update", this.decorateState(state));
+        this.io.to(lobbyRoom(lobbyId)).emit("game:finished", state.lastRoundSummary || null);
       }
 
       if (state.phase !== "finished" && state.phaseEndsAt <= now()) {
@@ -455,23 +463,27 @@ export class GameEngine {
     const aliveCountries = state.countries.filter((country) =>
       country.cities.some((city) => !city.destroyed && city.lifeLevel > 0)
     );
+    const resultsMs = 90000;
+
     if (aliveCountries.length <= 1) {
-      state.phase = "finished";
-      state.phaseEndsAt = now();
       this.recordHistory(state);
-      this.stmt.updateLobbyStatus.run("finished", now(), state.lobbyId);
-      this.stmt.clearLobbyPlayers.run(state.lobbyId);
-      this.io.to(lobbyRoom(state.lobbyId)).emit("game:finished", summary);
+      state.phase = "results";
+      state.phaseEndsAt = now() + resultsMs;
+      state.finalRankings = this._buildRankings(state);
+      this.saveState(state);
+      this.io.to(lobbyRoom(state.lobbyId)).emit("game:results", { summary, rankings: state.finalRankings });
+      this.scheduleNext(state);
       return state;
     }
 
     if (state.currentRound >= state.totalRounds) {
-      state.phase = "finished";
-      state.phaseEndsAt = now();
       this.recordHistory(state);
-      this.stmt.updateLobbyStatus.run("finished", now(), state.lobbyId);
-      this.stmt.clearLobbyPlayers.run(state.lobbyId);
-      this.io.to(lobbyRoom(state.lobbyId)).emit("game:finished", summary);
+      state.phase = "results";
+      state.phaseEndsAt = now() + resultsMs;
+      state.finalRankings = this._buildRankings(state);
+      this.saveState(state);
+      this.io.to(lobbyRoom(state.lobbyId)).emit("game:results", { summary, rankings: state.finalRankings });
+      this.scheduleNext(state);
       return state;
     }
 
@@ -480,6 +492,29 @@ export class GameEngine {
     state.phaseEndsAt = now() + config.phases.summaryMs;
     state.decisionsReady = [];
     return state;
+  }
+
+  _buildRankings(state) {
+    return state.countries
+      .map((country) => {
+        const aliveCities = country.cities.filter((c) => !c.destroyed && c.lifeLevel > 0).length;
+        const totalCities = country.cities.length;
+        const score = Math.round(
+          country.money + country.stats.avgLife * 10 + aliveCities * 200
+        );
+        return {
+          countryId: country.id,
+          name: country.name,
+          flag: country.flag,
+          score,
+          money: country.money,
+          avgLife: Number(country.stats.avgLife.toFixed(1)),
+          aliveCities,
+          totalCities,
+          eliminated: aliveCities === 0,
+        };
+      })
+      .sort((a, b) => b.score - a.score);
   }
 
   endDecisionPhaseEarly(lobbyId) {

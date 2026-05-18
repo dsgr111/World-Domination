@@ -151,6 +151,8 @@ export function Game() {
   const [showStats, setShowStats] = useState(false);
   const [summaryRoundShown, setSummaryRoundShown] = useState<number | null>(null);
   const [pendingVictory, setPendingVictory] = useState(false);
+  const [finalRankings, setFinalRankings] = useState<any[] | null>(null);
+  const [resultsCountdown, setResultsCountdown] = useState(90);
   const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
   const [showNegotiations, setShowNegotiations] = useState(false);
   const [activeNegotiation, setActiveNegotiation] = useState<Negotiation | null>(null);
@@ -509,6 +511,10 @@ export function Game() {
         if (!prev) return prev;
         return { ...prev, decisionsReady: payload.ready || [] };
       });
+    });
+
+    socket.on("game:results", (data: { rankings: any[] }) => {
+      setFinalRankings(data.rankings || []);
     });
 
     socket.on("game:finished", () => {
@@ -2895,6 +2901,118 @@ export function Game() {
         )}
       </AnimatePresence>
     </div>
+
+      {/* RESULTS SCREEN overlay */}
+      <AnimatePresence>
+        {finalRankings && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center px-4"
+            style={{ zIndex: 70, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(16px)" }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ type: "spring", damping: 18, stiffness: 250 }}
+              className="w-full max-w-2xl rounded-[28px] overflow-hidden"
+              style={{
+                background: "linear-gradient(160deg, rgba(15,23,42,0.99) 0%, rgba(30,41,59,0.99) 100%)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                boxShadow: "0 40px 100px rgba(0,0,0,0.7)",
+              }}
+            >
+              {/* Header */}
+              <div className="px-8 pt-8 pb-4 text-center"
+                   style={{ background: "linear-gradient(180deg, rgba(99,102,241,0.15) 0%, transparent 100%)" }}>
+                <div className="text-5xl mb-3">🏆</div>
+                <h2 className="text-3xl font-black text-white mb-1">Игра завершена!</h2>
+                <p className="text-white/50 text-sm">Финальная таблица лидеров</p>
+                {state?.phase === "results" && state.phaseEndsAt && (
+                  <div className="mt-3 text-xs text-white/40">
+                    Авто-переход к итогам через {Math.max(0, Math.ceil((state.phaseEndsAt - Date.now()) / 1000))}с
+                  </div>
+                )}
+              </div>
+
+              {/* Rankings */}
+              <div className="px-8 pb-4 space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                {finalRankings.map((country, idx) => {
+                  const medals = ["🥇", "🥈", "🥉"];
+                  const medal = medals[idx] || `${idx + 1}.`;
+                  const isWinner = idx === 0 && !country.eliminated;
+                  return (
+                    <motion.div
+                      key={country.countryId}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.07 }}
+                      className="rounded-[16px] px-5 py-4 flex items-center gap-4"
+                      style={{
+                        background: isWinner
+                          ? "linear-gradient(135deg, rgba(250,204,21,0.15), rgba(251,146,60,0.10))"
+                          : country.eliminated
+                          ? "rgba(255,255,255,0.03)"
+                          : "rgba(255,255,255,0.06)",
+                        border: isWinner
+                          ? "1px solid rgba(250,204,21,0.4)"
+                          : "1px solid rgba(255,255,255,0.08)",
+                        opacity: country.eliminated ? 0.5 : 1,
+                      }}
+                    >
+                      <div className="text-2xl w-8 text-center shrink-0">{medal}</div>
+                      <div className="text-3xl shrink-0">{country.flag}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-white text-base flex items-center gap-2">
+                          {country.name}
+                          {country.eliminated && <span className="text-xs font-normal text-red-400">💀 выбыла</span>}
+                          {isWinner && <span className="text-xs font-bold text-yellow-400">👑 ПОБЕДИТЕЛЬ</span>}
+                        </div>
+                        <div className="flex gap-4 mt-1 text-xs text-white/50">
+                          <span>🏙 {country.aliveCities}/{country.totalCities} городов</span>
+                          <span>❤️ {country.avgLife}% жизнь</span>
+                          <span>💰 {country.money.toLocaleString()}$</span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xl font-black" style={{ color: isWinner ? "#fbbf24" : "rgba(255,255,255,0.8)" }}>
+                          {country.score.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-white/40">очков</div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {/* Stats summary */}
+              {state && (
+                <div className="px-8 pb-6">
+                  <div className="rounded-[14px] px-5 py-4 grid grid-cols-3 gap-4 text-center"
+                       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                    <div>
+                      <div className="text-xl font-bold text-white">{state.currentRound}</div>
+                      <div className="text-xs text-white/40">раундов сыграно</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-white">
+                        {state.countries.filter(c => !c.cities.every((x: any) => x.destroyed)).length}
+                      </div>
+                      <div className="text-xs text-white/40">стран выжило</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-white">
+                        {state.countries.reduce((sum: number, c: any) => sum + c.cities.filter((x: any) => x.destroyed).length, 0)}
+                      </div>
+                      <div className="text-xs text-white/40">городов уничтожено</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
   );
 }
-
