@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="32" fill="#0f1722"/>
+
+  <!-- Globe -->
+  <circle cx="32" cy="36" r="18" fill="none" stroke="#4a9eff" stroke-width="2"/>
+  <ellipse cx="32" cy="36" rx="8" ry="18" fill="none" stroke="#4a9eff" stroke-width="1.5"/>
+  <line x1="14" y1="36" x2="50" y2="36" stroke="#4a9eff" stroke-width="1.5"/>
+  <line x1="16" y1="28" x2="48" y2="28" stroke="#4a9eff" stroke-width="1"/>
+  <line x1="16" y1="44" x2="48" y2="44" stroke="#4a9eff" stroke-width="1"/>
+  <circle cx="32" cy="36" r="18" fill="#1a2a4a" opacity="0.6"/>
+  <circle cx="32" cy="36" r="18" fill="none" stroke="#4a9eff" stroke-width="2"/>
+  <ellipse cx="32" cy="36" rx="8" ry="18" fill="none" stroke="#4a9eff" stroke-width="1.5"/>
+  <line x1="14" y1="36" x2="50" y2="36" stroke="#4a9eff" stroke-width="1.5"/>
+  <line x1="16" y1="28" x2="48" y2="28" stroke="#4a9eff" stroke-width="1"/>
+  <line x1="16" y1="44" x2="48" y2="44" stroke="#4a9eff" stroke-width="1"/>
+
+  <!-- Crown -->
+  <polygon points="20,24 24,14 32,20 40,14 44,24" fill="#f5c518" stroke="#e6a800" stroke-width="1"/>
+  <rect x="20" y="22" width="24" height="6" rx="2" fill="#f5c518" stroke="#e6a800" stroke-width="1"/>
+  <!-- Crown dots -->
+  <circle cx="24" cy="14" r="2" fill="#fff"/>
+  <circle cx="32" cy="10" r="2" fill="#fff"/>
+  <circle cx="40" cy="14" r="2" fill="#fff"/>
+</svg>
