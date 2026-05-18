@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+
+# Build output
+dist/
+backend/public/
+
+# Environment variables (NEVER commit these)
+.env
+backend/.env
+
+# SQLite database
+backend/data/*.db
+backend/data/*.db-shm
+backend/data/*.db-wal
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Vite cache
+.vite/
