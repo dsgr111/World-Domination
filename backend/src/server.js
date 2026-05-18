@@ -2403,7 +2403,63 @@ io.on("connection", (socket) => {
     });
     cb?.({ ok: true });
   });
+
+  // ── Pause voting (unanimous) ──────────────────────────────────────────────
+  socket.on("game:pause-vote", (payload, cb) => {
+    const lobbyId = payload?.lobbyId;
+    const vote = Boolean(payload?.vote); // true = want pause, false = want resume
+    if (!lobbyId) { cb?.({ error: "MISSING_LOBBY" }); return; }
+
+    const countryId = getLobbyPlayerCountry(lobbyId, user.id);
+    if (!countryId) { cb?.({ error: "NOT_IN_LOBBY" }); return; }
+
+    const state = engine.loadState(lobbyId);
+    if (!state || state.phase === "finished" || state.phase === "results") {
+      cb?.({ error: "INVALID_PHASE" }); return;
+    }
+
+    if (!state.pauseVotes) state.pauseVotes = {};
+    if (!state.pausedAt) state.pausedAt = null;
+
+    if (vote) {
+      state.pauseVotes[countryId] = true;
+    } else {
+      delete state.pauseVotes[countryId];
+    }
+
+    const activePlayers = state.countries
+      .filter(c => !c.cities.every(ci => ci.destroyed))
+      .map(c => c.id);
+    const allVoted = activePlayers.length > 0 &&
+      activePlayers.every(id => state.pauseVotes[id]);
+
+    if (allVoted && !state.pausedAt) {
+      // Pause: freeze timer
+      state.pausedAt = now();
+      state.pauseRemainingMs = Math.max(0, state.phaseEndsAt - now());
+      engine.clearTimer(lobbyId);
+    } else if (!allVoted && state.pausedAt) {
+      // Resume: restore remaining time
+      const remaining = state.pauseRemainingMs ?? 30000;
+      state.phaseEndsAt = now() + remaining;
+      state.pausedAt = null;
+      state.pauseRemainingMs = null;
+      engine.saveState(state);
+      engine.scheduleNext(state);
+    }
+
+    engine.saveState(state);
+
+    io.to(`lobby:${lobbyId}`).emit("game:pause-state", {
+      paused: Boolean(state.pausedAt),
+      votes: state.pauseVotes,
+      activePlayers,
+    });
+
+    cb?.({ ok: true });
+  });
 });
+
 
 engine.restoreActiveGames();
 

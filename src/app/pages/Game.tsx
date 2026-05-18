@@ -1,6 +1,12 @@
 ﻿
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
+import WorldMap, { buildAttackAnims } from "../components/WorldMap";
+import {
+  playExplosion, playCoins, playTick, playCorrect, playWrong,
+  playRoundEnd, playPhaseChange, playCityDestroyed, playVote,
+  setSoundMuted, isSoundMuted,
+} from "../lib/sounds";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import {
@@ -153,6 +159,12 @@ export function Game() {
   const [pendingVictory, setPendingVictory] = useState(false);
   const [finalRankings, setFinalRankings] = useState<any[] | null>(null);
   const [resultsCountdown, setResultsCountdown] = useState(90);
+  const [pauseVotes, setPauseVotes] = useState<Record<string,boolean>>({});
+  const [gamePaused, setGamePaused] = useState(false);
+  const [activePausePlayers, setActivePausePlayers] = useState<string[]>([]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [mapAttacks, setMapAttacks] = useState<any[]>([]);
+  const [showMap, setShowMap] = useState(false);
   const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
   const [showNegotiations, setShowNegotiations] = useState(false);
   const [activeNegotiation, setActiveNegotiation] = useState<Negotiation | null>(null);
@@ -500,6 +512,7 @@ export function Game() {
     });
 
     socket.on("game:phase", (data) => {
+      playPhaseChange();
       setState((prev) => {
         if (!prev) return prev;
         return { ...prev, phase: data.phase, phaseEndsAt: data.phaseEndsAt };
@@ -515,6 +528,13 @@ export function Game() {
 
     socket.on("game:results", (data: { rankings: any[] }) => {
       setFinalRankings(data.rankings || []);
+      playRoundEnd();
+    });
+
+    socket.on("game:pause-state", (data: { paused: boolean; votes: Record<string,boolean>; activePlayers: string[] }) => {
+      setGamePaused(data.paused);
+      setPauseVotes(data.votes || {});
+      setActivePausePlayers(data.activePlayers || []);
     });
 
     socket.on("game:finished", () => {
@@ -580,6 +600,7 @@ export function Game() {
     if (!quizQuestion || quizResult) return;
     if (quizSeconds > 0) return;
     if (Date.now() < quizQuestion.expiresAt) return;
+    if (quizSeconds <= 5 && quizSeconds > 0) { playTick(); }
     void handleQuizAnswer(-1);
   }, [quizSeconds, quizQuestion, quizResult]);
 
@@ -590,6 +611,15 @@ export function Game() {
     if (summaryRoundShown === round) return;
     setSummaryRoundShown(round);
     setShowStats(true);
+    playRoundEnd();
+    if (state?.lastRoundSummary?.impacts?.length > 0) {
+      const atks = buildAttackAnims(state.lastRoundSummary.impacts, {});
+      setMapAttacks(atks);
+      (state.lastRoundSummary.impacts as any[]).forEach((_: any, i: number) => {
+        setTimeout(() => { if (i === 0) { playExplosion(); } else { playCityDestroyed(); } }, i * 350);
+      });
+      setTimeout(() => setMapAttacks([]), 4500);
+    }
   }, [state, summaryRoundShown]);
 
   useEffect(() => {
@@ -1246,6 +1276,7 @@ export function Game() {
       setActionInfo("Не удалось отправить ответ.");
     } finally {
       setTimeout(() => setQuizQuestion(null), 1200);
+      if (data.correct) { playCorrect(); } else { playWrong(); }
     }
   };
 
@@ -2125,14 +2156,67 @@ export function Game() {
               })}
             </div>
 
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setShowStats(true)}
-              className="btn-primary w-full rounded-[12px] h-[50px] font-bold text-white mt-6"
+            <div className="mt-6 grid grid-cols-2 gap-2">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowStats(true)}
+                className="btn-primary rounded-[12px] h-[44px] font-bold text-white text-sm"
+              >
+                📊 Стат.
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowMap(true)}
+                className="rounded-[12px] h-[44px] font-bold text-white text-sm"
+                style={{ background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)" }}
+              >
+                🗺 Карта
+              </motion.button>
+            </div>
+            {/* Sound toggle */}
+            <button
+              onClick={() => { const next = !soundEnabled; setSoundEnabled(next); setSoundMuted(!next); }}
+              className="mt-2 w-full rounded-[12px] h-[36px] text-xs font-bold text-white/70"
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
             >
-              📊 Статистика
-            </motion.button>
+              {soundEnabled ? "🔊 Звук вкл" : "🔇 Звук выкл"}
+            </button>
+            {/* Pause vote */}
+            {state && state.phase !== "finished" && state.phase !== "results" && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  const myVote = myCountry ? pauseVotes[myCountry.id] : false;
+                  const socket = socketRef.current;
+                  if (!socket || !lobbyIdRef.current) return;
+                  playVote();
+                  socket.emit("game:pause-vote", { lobbyId: lobbyIdRef.current, vote: !myVote });
+                }}
+                className="mt-2 w-full rounded-[12px] h-[44px] font-bold text-white text-sm"
+                style={{
+                  background: gamePaused
+                    ? "rgba(251,191,36,0.25)"
+                    : myCountry && pauseVotes[myCountry.id]
+                    ? "rgba(251,191,36,0.15)"
+                    : "rgba(255,255,255,0.05)",
+                  border: gamePaused
+                    ? "1px solid rgba(251,191,36,0.5)"
+                    : myCountry && pauseVotes[myCountry.id]
+                    ? "1px solid rgba(251,191,36,0.3)"
+                    : "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                {gamePaused ? "▶ Снять паузу" : myCountry && pauseVotes[myCountry.id] ? "⏸ Жду остальных..." : "⏸ Пауза"}
+                {!gamePaused && activePausePlayers.length > 0 && (
+                  <span className="ml-2 text-xs text-white/50">
+                    ({Object.keys(pauseVotes).length}/{activePausePlayers.length})
+                  </span>
+                )}
+              </motion.button>
+            )}
           </div>
         </div>
       </div>
@@ -2902,6 +2986,236 @@ export function Game() {
       </AnimatePresence>
     </div>
 
+
+      {/* PAUSE OVERLAY */}
+      <AnimatePresence>
+        {gamePaused && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center"
+            style={{ zIndex: 55, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(8px)", pointerEvents: "none" }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="rounded-[24px] px-10 py-8 text-center"
+              style={{
+                background: "linear-gradient(135deg, rgba(15,23,42,0.98), rgba(30,41,59,0.98))",
+                border: "1px solid rgba(251,191,36,0.4)",
+                boxShadow: "0 0 60px rgba(251,191,36,0.15)",
+                pointerEvents: "auto",
+              }}
+            >
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 1.5 }}
+                className="text-5xl mb-4"
+              >⏸</motion.div>
+              <div className="text-2xl font-black text-white mb-2">Игра на паузе</div>
+              <div className="text-sm text-white/50 mb-4">Все игроки проголосовали за паузу</div>
+              <div className="text-xs text-yellow-400/70">
+                Нажмите кнопку "Снять паузу" в боковой панели чтобы продолжить
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* WORLD MAP MODAL */}
+      <AnimatePresence>
+        {showMap && state && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center px-4"
+            style={{ zIndex: 65, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(12px)" }}
+            onClick={() => setShowMap(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-4xl rounded-[24px] overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, rgba(10,15,30,0.99), rgba(20,30,60,0.99))",
+                border: "1px solid rgba(255,255,255,0.12)",
+                boxShadow: "0 40px 100px rgba(0,0,0,0.7)",
+              }}
+            >
+              <div className="flex items-center justify-between px-6 py-4"
+                   style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="text-lg font-bold text-white">🗺 Карта мира</div>
+                <button
+                  onClick={() => setShowMap(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white"
+                  style={{ background: "rgba(255,255,255,0.08)" }}
+                >✕</button>
+              </div>
+              <div className="p-4">
+                <WorldMap
+                  gameCountries={state.countries.map((c, i) => ({
+                    id: c.id,
+                    name: c.name,
+                    flag: c.flag,
+                    eliminated: c.cities.every((x: any) => x.destroyed || x.lifeLevel <= 0),
+                    isMe: c.id === myCountry?.id,
+                  }))}
+                  attacks={mapAttacks}
+                />
+              </div>
+              {/* Last round attacks legend */}
+              {state.lastRoundSummary?.impacts?.length > 0 && (
+                <div className="px-6 pb-5">
+                  <div className="text-xs font-bold text-white/50 mb-2">Атаки последнего раунда:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {state.lastRoundSummary.impacts.map((imp: any, i: number) => {
+                      const attacker = state.countries.find((c: any) => c.id === imp.attackerCountryId);
+                      const target = state.countries.find((c: any) => c.id === imp.targetCountryId);
+                      return (
+                        <div key={i} className="rounded-full px-3 py-1 text-xs font-bold"
+                             style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}>
+                          {attacker?.flag || "?"} → {target?.flag || "?"} 💣
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ROUND SUMMARY ANIMATION */}
+      <AnimatePresence>
+        {state?.lastRoundSummary && showStats && summaryRoundShown === state.lastRoundSummary.round && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center px-4"
+            style={{ zIndex: 58, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(10px)" }}
+            onClick={() => { setShowStats(false); if (pendingVictory) finalizeVictory(); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ type: "spring", damping: 18, stiffness: 250 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-xl rounded-[24px] overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, rgba(15,23,42,0.99), rgba(30,41,59,0.99))",
+                border: "1px solid rgba(255,255,255,0.12)",
+                boxShadow: "0 40px 80px rgba(0,0,0,0.6)",
+              }}
+            >
+              <div className="px-7 py-5 text-center"
+                   style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="text-xs font-bold text-white/40 mb-1">ИТОГИ РАУНДА</div>
+                <div className="text-2xl font-black text-white">Раунд {state.lastRoundSummary.round}</div>
+              </div>
+              <div className="p-5 space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                {[...state.lastRoundSummary.countries]
+                  .sort((a: any, b: any) => b.avgLife - a.avgLife)
+                  .map((entry: any, idx: number) => {
+                    const country = state.countries.find((c: any) => c.id === entry.countryId);
+                    const delta = entry.delta ?? 0;
+                    const isPositive = delta >= 0;
+                    return (
+                      <motion.div
+                        key={entry.countryId}
+                        initial={{ opacity: 0, x: -30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.08, type: "spring", stiffness: 300, damping: 20 }}
+                        className="flex items-center gap-3 rounded-[14px] px-4 py-3"
+                        style={{
+                          background: "rgba(255,255,255,0.04)",
+                          border: "1px solid rgba(255,255,255,0.07)",
+                        }}
+                      >
+                        <span className="text-2xl">{country?.flag || "🌍"}</span>
+                        <div className="flex-1">
+                          <div className="text-sm font-bold text-white">{country?.name || entry.countryId}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="flex-1 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+                              <motion.div
+                                className="h-1.5 rounded-full"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.max(0, entry.avgLife)}%` }}
+                                transition={{ delay: idx * 0.08 + 0.3, duration: 0.6 }}
+                                style={{
+                                  background: entry.avgLife > 50
+                                    ? "linear-gradient(90deg, var(--app-success), #34d399)"
+                                    : "linear-gradient(90deg, #f97316, #ef4444)",
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs text-white/50 w-10 text-right">{entry.avgLife.toFixed(1)}%</span>
+                          </div>
+                        </div>
+                        <motion.div
+                          initial={{ scale: 0, rotate: -15 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ delay: idx * 0.08 + 0.4, type: "spring" }}
+                          className="text-sm font-black px-2 py-1 rounded-lg"
+                          style={{
+                            background: isPositive ? "rgba(52,211,153,0.15)" : "rgba(239,68,68,0.15)",
+                            border: `1px solid ${isPositive ? "rgba(52,211,153,0.3)" : "rgba(239,68,68,0.3)"}`,
+                            color: isPositive ? "#34d399" : "#f87171",
+                          }}
+                        >
+                          {isPositive ? "+" : ""}{delta.toFixed(1)}%
+                        </motion.div>
+                      </motion.div>
+                    );
+                  })}
+                {/* Nuke impacts */}
+                {state.lastRoundSummary.impacts?.length > 0 && (
+                  <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="text-xs font-bold text-white/40 mb-2">💣 Ядерные удары</div>
+                    {state.lastRoundSummary.impacts.map((imp: any, i: number) => {
+                      const attacker = state.countries.find((c: any) => c.id === imp.attackerCountryId);
+                      const target = state.countries.find((c: any) => c.id === imp.targetCountryId);
+                      return (
+                        <motion.div
+                          key={i}
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.5 + i * 0.1 }}
+                          className="text-xs text-white/60 flex items-center gap-2 mb-1"
+                        >
+                          <span>{attacker?.flag || "?"}</span>
+                          <span>→</span>
+                          <span>{target?.flag || "?"} {target?.name}</span>
+                          <span className="ml-auto" style={{ color: imp.destroyed ? "#ef4444" : "#f97316" }}>
+                            {imp.destroyed ? "💀 уничтожен" : "🛡 отбит щитом"}
+                          </span>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="px-7 pb-6 pt-2">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { setShowStats(false); if (pendingVictory) finalizeVictory(); }}
+                  className="w-full rounded-[14px] h-[48px] font-bold text-white"
+                  style={{ background: "linear-gradient(135deg, var(--app-accent), var(--app-accent-strong))" }}
+                >
+                  Продолжить →
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* RESULTS SCREEN overlay */}
       <AnimatePresence>
         {finalRankings && (
@@ -3016,3 +3330,13 @@ export function Game() {
       </AnimatePresence>
   );
 }
+
+
+
+
+
+
+
+
+
+

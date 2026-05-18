@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from "uuid";
+﻿import { v4 as uuidv4 } from "uuid";
 import { db } from "./db.js";
 import { config } from "./config.js";
 import { COUNTRY_TEMPLATES } from "./constants.js";
@@ -137,6 +137,13 @@ export class GameEngine {
     }
     const timer = setTimeout(() => this.advancePhase(state.lobbyId), delay);
     this.timers.set(state.lobbyId, timer);
+  }
+
+  clearTimer(lobbyId) {
+    if (this.timers.has(lobbyId)) {
+      clearTimeout(this.timers.get(lobbyId));
+      this.timers.delete(lobbyId);
+    }
   }
 
   startGame(lobbyId) {
@@ -540,3 +547,4 @@ export class GameEngine {
     return state;
   }
 }
+
