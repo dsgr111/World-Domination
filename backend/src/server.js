@@ -604,6 +604,23 @@ app.post("/api/auth/register/request-code", async (req, res) => {
     }
     const passwordHash = await hashPassword(password);
     const createdAt = now();
+
+    // If email verification is disabled or SMTP not configured — register directly
+    const requireVerification = process.env.REQUIRE_EMAIL_VERIFICATION !== "false" && emailTransport;
+    if (!requireVerification) {
+      const result = stmt.insertUser.run(
+        normalizedEmail, null, nickname, passwordHash, avatarEmoji, createdAt, createdAt
+      );
+      const user = {
+        id: result.lastInsertRowid,
+        email: normalizedEmail,
+        nickname,
+        avatar_emoji: avatarEmoji,
+      };
+      const token = signToken(user);
+      return res.json({ ok: true, skipVerification: true, token, user });
+    }
+
     const code = generateEmailCode();
     stmt.deleteExpiredEmailVerifications.run(createdAt);
     stmt.upsertEmailVerification.run(
@@ -629,6 +646,7 @@ app.post("/api/auth/register/request-code", async (req, res) => {
     return res.status(500).json({ error: "REGISTER_FAILED" });
   }
 });
+
 
 app.post("/api/auth/register/verify-code", async (req, res) => {
   try {

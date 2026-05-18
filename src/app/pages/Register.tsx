@@ -27,7 +27,7 @@ export function Register() {
     setError(null);
     setLoading(true);
     try {
-      const data = await api<{ ok: true; email: string; expiresAt: number }>(
+      const data = await api<{ ok: boolean; email?: string; expiresAt?: number; skipVerification?: boolean; token?: string; user?: any }>(
         "/api/auth/register/request-code",
         {
           method: "POST",
@@ -39,6 +39,12 @@ export function Register() {
           },
         }
       );
+      // When SMTP is not available, backend registers user directly
+      if (data.skipVerification && data.token && data.user) {
+        saveAuth({ token: data.token, user: data.user }, remember);
+        navigate("/welcome");
+        return;
+      }
       sessionStorage.setItem(
         "wd_pending_verification",
         JSON.stringify({
@@ -68,6 +74,7 @@ export function Register() {
       setLoading(false);
     }
   };
+
 
   return (
     <div
