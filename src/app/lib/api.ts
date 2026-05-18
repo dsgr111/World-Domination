@@ -1,7 +1,7 @@
 import { clearAuth, getToken } from "./auth";
 
 export const API_URL =
-  import.meta.env.VITE_API_URL?.toString() || "http://localhost:4000";
+  import.meta.env.VITE_API_URL?.toString() || "";
 
 type ApiOptions = {
   method?: string;
