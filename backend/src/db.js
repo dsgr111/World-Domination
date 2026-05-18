@@ -77,12 +77,10 @@ db.exec(`
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     lobby_id     TEXT    NOT NULL,
-    country_id   TEXT    NOT NULL DEFAULT '',
     country_name TEXT    NOT NULL,
     score        INTEGER NOT NULL DEFAULT 0,
     result       TEXT    NOT NULL,
-    created_at   INTEGER NOT NULL,
-    UNIQUE(user_id, lobby_id)
+    created_at   INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS lobbies (
@@ -161,14 +159,12 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS nuke_attacks (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    lobby_id            TEXT    NOT NULL,
-    round_number        INTEGER NOT NULL,
-    attacker_country_id TEXT    NOT NULL,
-    target_country_id   TEXT    NOT NULL,
-    target_city_id      TEXT    NOT NULL,
-    bombs               INTEGER NOT NULL DEFAULT 1,
-    created_at          INTEGER NOT NULL
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    lobby_id        TEXT    NOT NULL,
+    attacker_id     TEXT    NOT NULL,
+    target_id       TEXT    NOT NULL,
+    round_number    INTEGER NOT NULL,
+    created_at      INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS game_state (
