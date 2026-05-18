@@ -96,7 +96,8 @@ const shuffle = (items, rng) => {
   return result;
 };
 
-const BOOL_OPTIONS = ["Правда", "Ложь", "Не уверен", "Скорее нет"];
+const BOOL_OPTIONS = ["Верно", "Ложь"];
+
 
 const pickWrong = (pool, exclude, rng) => {
   const deny = new Set(Array.isArray(exclude) ? exclude : [exclude]);

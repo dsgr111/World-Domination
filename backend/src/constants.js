@@ -1,4 +1,4 @@
-﻿export const AVATAR_EMOJIS = ["👑", "🏆", "⚔️", "🛡️", "🏰", "🎯", "⭐", "🔱"];
+export const AVATAR_EMOJIS = ["👑", "🏆", "⚔️", "🛡️", "🏰", "🎯", "⭐", "🔱"];
 
 const baseCity = (id, name, baseIncome, lifeLevel = 45) => ({
   id,
@@ -243,7 +243,7 @@ export const ECONOMY_DEFAULTS = {
   nukeCost: 1200,
   nukeUnlockRound: 3,
   maxLifeLevel: 100,
-  lifeDecay: 2,
+  lifeDecay: 1,
   quizReward: 100,
 };
 

@@ -2159,73 +2159,133 @@ export function Game() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 flex items-center justify-center px-4"
-            style={{ zIndex: 60, background: "rgba(0, 0, 0, 0.6)", backdropFilter: "blur(6px)" }}
+            style={{ zIndex: 60, background: "rgba(0, 0, 0, 0.75)", backdropFilter: "blur(10px)" }}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-2xl rounded-[18px] p-6"
+              initial={{ scale: 0.92, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
+              className="w-full max-w-2xl rounded-[24px] overflow-hidden"
               style={{
-                background: "var(--app-surface)",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
+                background: "linear-gradient(135deg, rgba(15,23,42,0.98) 0%, rgba(30,41,59,0.98) 100%)",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                boxShadow: "0 30px 80px rgba(0,0,0,0.6)",
               }}
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-sm text-white/70">
-                  Вопрос раунда {quizQuestion.round}
-                </div>
-                <div className={`text-sm font-bold ${quizSeconds <= 5 ? "animate-pulse" : ""}`}
-                     style={{ color: quizSeconds <= 5 ? "var(--app-danger)" : "var(--app-success)" }}>
-                  ⏱️ {quizSeconds}s
-                </div>
-              </div>
-              <div
-                className="text-lg font-bold text-white mb-4"
-                style={{ userSelect: "none" }}
-                onCopy={(e) => e.preventDefault()}
-                onContextMenu={(e) => e.preventDefault()}
-              >
-                {quizQuestion.text}
-              </div>
-              <div className="grid gap-3">
-                {quizQuestion.options.map((option, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleQuizAnswer(idx)}
-                    disabled={quizResult !== null}
-                    className="text-left rounded-[12px] px-4 py-3 text-sm font-semibold text-white"
-                    style={{
-                      background: "rgba(255, 255, 255, 0.06)",
-                      border: "1px solid rgba(255, 255, 255, 0.1)",
-                      opacity: quizResult ? 0.7 : 1,
-                      userSelect: "none",
-                    }}
-                    onCopy={(e) => e.preventDefault()}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-              {quizResult && (
+              <div className="w-full h-1.5" style={{ background: "rgba(255,255,255,0.08)" }}>
                 <div
-                  className="mt-4 text-sm font-bold"
                   style={{
-                    color:
-                      quizResult === "correct"
-                        ? "var(--app-success)"
-                        : quizResult === "timeout"
-                        ? "var(--app-warning)"
-                        : "var(--app-danger)",
+                    height: "100%",
+                    background: quizSeconds <= 5
+                      ? "linear-gradient(90deg, #ef4444, #f97316)"
+                      : "linear-gradient(90deg, var(--app-accent), var(--app-success))",
+                    width: `${Math.min(100, (quizSeconds / 30) * 100)}%`,
+                    transition: "width 1s linear, background 0.5s ease",
                   }}
-                >
-                  {quizResult === "correct"
-                    ? `Верно! +${quizReward}$`
-                    : quizResult === "timeout"
-                    ? "Время вышло."
-                    : "Неверный ответ."}
+                />
+              </div>
+              <div className="p-7">
+                <div className="flex items-center justify-between mb-5">
+                  <div
+                    className="rounded-full px-3 py-1 text-xs font-bold"
+                    style={{
+                      background: "rgba(99,102,241,0.2)",
+                      border: "1px solid rgba(99,102,241,0.4)",
+                      color: "#a5b4fc",
+                    }}
+                  >
+                    🧠 Раунд {quizQuestion.round}
+                  </div>
+                  <div
+                    className={`flex items-center gap-1.5 text-sm font-bold px-3 py-1 rounded-full ${quizSeconds <= 5 ? "animate-pulse" : ""}`}
+                    style={{
+                      color: quizSeconds <= 5 ? "#ef4444" : "#34d399",
+                      background: quizSeconds <= 5 ? "rgba(239,68,68,0.12)" : "rgba(52,211,153,0.12)",
+                      border: `1px solid ${quizSeconds <= 5 ? "rgba(239,68,68,0.3)" : "rgba(52,211,153,0.3)"}`,
+                    }}
+                  >
+                    ⏱ {quizSeconds}с
+                  </div>
                 </div>
-              )}
+                <div
+                  className="text-xl font-bold text-white mb-6 leading-relaxed"
+                  style={{ userSelect: "none" }}
+                  onCopy={(e) => e.preventDefault()}
+                  onContextMenu={(e) => e.preventDefault()}
+                >
+                  {quizQuestion.text}
+                </div>
+                <div className={`grid gap-3 ${quizQuestion.options.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {quizQuestion.options.map((option, idx) => {
+                    const letters = ["A", "B", "C", "D"];
+                    const isCorrect = idx === quizQuestion.correctIndex;
+                    const isChosen = quizResult !== null;
+                    let bg = "rgba(255, 255, 255, 0.06)";
+                    let border = "1px solid rgba(255, 255, 255, 0.1)";
+                    let textColor = "white";
+                    if (isChosen && isCorrect) {
+                      bg = "rgba(52, 211, 153, 0.18)";
+                      border = "1px solid rgba(52, 211, 153, 0.55)";
+                      textColor = "#34d399";
+                    } else if (isChosen) {
+                      bg = "rgba(255,255,255,0.03)";
+                      border = "1px solid rgba(255,255,255,0.06)";
+                      textColor = "rgba(255,255,255,0.35)";
+                    }
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleQuizAnswer(idx)}
+                        disabled={quizResult !== null}
+                        className="flex items-center gap-3 text-left rounded-[14px] px-4 py-3.5 font-semibold transition-all"
+                        style={{
+                          background: bg,
+                          border,
+                          color: textColor,
+                          userSelect: "none",
+                          cursor: isChosen ? "default" : "pointer",
+                        }}
+                        onCopy={(e) => e.preventDefault()}
+                      >
+                        <span
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
+                          style={{
+                            background: isChosen && isCorrect ? "rgba(52,211,153,0.3)" : "rgba(255,255,255,0.1)",
+                            color: isChosen && isCorrect ? "#34d399" : "rgba(255,255,255,0.55)",
+                          }}
+                        >
+                          {letters[idx]}
+                        </span>
+                        <span className="text-sm leading-snug">{option}</span>
+                        {isChosen && isCorrect && <span className="ml-auto text-base">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {quizResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-5 rounded-[12px] px-4 py-3 text-sm font-bold text-center"
+                    style={{
+                      background: quizResult === "correct"
+                        ? "rgba(52,211,153,0.12)"
+                        : quizResult === "timeout"
+                        ? "rgba(251,191,36,0.12)"
+                        : "rgba(239,68,68,0.12)",
+                      border: `1px solid ${quizResult === "correct" ? "rgba(52,211,153,0.3)" : quizResult === "timeout" ? "rgba(251,191,36,0.3)" : "rgba(239,68,68,0.3)"}`,
+                      color: quizResult === "correct" ? "#34d399" : quizResult === "timeout" ? "#fbbf24" : "#ef4444",
+                    }}
+                  >
+                    {quizResult === "correct"
+                      ? `🎉 Верно! +${quizReward}$`
+                      : quizResult === "timeout"
+                      ? "⏰ Время вышло!"
+                      : "❌ Неверный ответ"}
+                  </motion.div>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}
