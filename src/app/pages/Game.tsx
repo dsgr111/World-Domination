@@ -2984,8 +2984,6 @@ export function Game() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
-
 
       {/* PAUSE OVERLAY */}
       <AnimatePresence>
@@ -3328,8 +3326,11 @@ export function Game() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
   );
 }
+
+
 
 
 
